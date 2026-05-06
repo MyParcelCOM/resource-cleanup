@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/myparcelcom/resource-cleanup/actions/workflows/tests.yml/badge.svg)](https://github.com/myparcelcom/resource-cleanup/actions/workflows/tests.yml)
 
-A Laravel package to permanently delete soft-deleted or expired records after a configurable cutoff date.
+A Laravel package to permanently delete soft-deleted or expired records based on a defined "cleanable" query scope or after a configurable cutoff date.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ return [
     // Records older than this many days will be deleted (default: 90)
     'default_retention_days' => env('RESOURCE_CLEANUP_RETENTION_DAYS', 90),
 
-    // Models to clean up when running the command without --model
+    // Valid models to clean up
     'models' => [
         \App\Models\Order::class,
         \App\Models\AuditLog::class,
@@ -48,16 +48,10 @@ Run cleanup for all models defined in the config:
 php artisan resource-cleanup:run
 ```
 
-Target specific models:
+Target specific models from the config:
 
 ```bash
 php artisan resource-cleanup:run --model=App\\Models\\Order
-```
-
-Override the retention period:
-
-```bash
-php artisan resource-cleanup:run --days=30
 ```
 
 Preview what would be deleted without deleting anything:
@@ -91,30 +85,18 @@ $results = $cleanup->cleanupAll([
 Implement the `CleanableResource` contract on any model to define its own retention period:
 
 ```php
-use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use MyParcelCom\ResourceCleanup\Contracts\CleanableResource;
 
 class AuditLog extends Model implements CleanableResource
 {
-    public static function getCleanupCutoffDate(): Carbon
+    public static function scopeCleanable(): Builder
     {
-        return Carbon::now()->subDays(14);
+        // narrow down the query scope by adding where() clauses
+        return self::query();
     }
 }
 ```
-
-### Scheduling
-
-Add to your `app/Console/Kernel.php` (Laravel 9/10) or `routes/console.php` (Laravel 11+):
-
-```php
-// Laravel 11+
-Schedule::command('resource-cleanup:run')->daily();
-```
-
-## How Soft Deletes Are Handled
-
-If a model uses the `SoftDeletes` trait, the package will **only** target soft-deleted records (`deleted_at` is set). Hard-deleted records are already gone. If the model does not use `SoftDeletes`, all records older than the cutoff are deleted permanently.
 
 ## Testing
 
@@ -150,7 +132,3 @@ docker compose run --rm app composer require some/package
 composer install
 composer test
 ```
-
-## License
-
-MIT
