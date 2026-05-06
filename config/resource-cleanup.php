@@ -21,9 +21,8 @@ return [
     | Models
     |--------------------------------------------------------------------------
     |
-    | List the fully-qualified Eloquent model class names that should be
-    | cleaned up when running `php artisan resource-cleanup:run` without
-    | the --model option.
+    | List the fully-qualified Eloquent model class names that can be
+    | cleaned up when running `php artisan resource-cleanup:run`.
     |
     | Example:
     |   \App\Models\Order::class,

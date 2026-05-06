@@ -6,101 +6,108 @@ namespace MyParcelCom\ResourceCleanup\Console\Commands;
 
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use MyParcelCom\ResourceCleanup\Contracts\CleanableResource;
-use MyParcelCom\ResourceCleanup\ResourceCleanup;
 
 class ResourceCleanupCommand extends Command
 {
     protected $signature = 'resource-cleanup:run
                             {--model=* : One or more fully-qualified model class names to clean up}
-                            {--days= : Override the retention period in days}
                             {--dry-run : Show what would be deleted without actually deleting}';
 
     protected $description = 'Permanently delete records older than the configured cutoff date.';
 
-    public function handle(ResourceCleanup $cleanup): int
+    public function handle(): int
     {
-        $models = $this->resolveModels();
-
-        if (empty($models)) {
-            $this->error('No models specified. Pass --model=App\\Models\\YourModel or define resource-cleanup.models in your config.');
+        $cleanableModels = config('resource-cleanup.models', []);
+        if (empty($cleanableModels)) {
+            $this->error(
+                'No cleanable models defined. Add class-strings to resource-cleanup.models in your config, e.g. App\\Models\\YourModel.',
+            );
 
             return self::FAILURE;
         }
 
-        $cutoffDate = $this->resolveCutoffDate($cleanup);
+        $models = $this->resolveModels($cleanableModels, $this->option('model'));
+        if (empty($models)) {
+            $this->error(
+                sprintf("Invalid model options specified. Valid models are: \n%s", implode("\n", $cleanableModels)),
+            );
 
-        $this->info(sprintf(
-            '%s records older than %s.',
-            $this->option('dry-run') ? 'Scanning for' : 'Deleting',
-            $cutoffDate->toDateTimeString(),
-        ));
+            return self::FAILURE;
+        }
 
         $totalDeleted = 0;
-
         foreach ($models as $modelClass) {
-            $modelCutoff = $this->modelCutoffDate($modelClass, $cutoffDate);
+            $query = $this->getCleanableQuery($modelClass);
 
             if ($this->option('dry-run')) {
-                $count = $this->dryRunCount($modelClass, $modelCutoff);
+                $count = $query->count();
+
                 $this->line(sprintf('  [dry-run] %s: %d record(s) would be deleted.', $modelClass, $count));
+
                 $totalDeleted += $count;
+
                 continue;
             }
 
-            $deleted = $cleanup->cleanup($modelClass, $modelCutoff);
+            $deleted = 0;
+            $query->chunkById(100, function (Collection $records) use (&$deleted) {
+                foreach ($records as $record) {
+                    $record->forceDelete();
+                    $deleted++;
+                }
+            });
+
             $this->line(sprintf('  %s: %d record(s) deleted.', $modelClass, $deleted));
+
             $totalDeleted += $deleted;
         }
 
-        $this->info(sprintf(
-            'Done. Total: %d record(s) %s.',
-            $totalDeleted,
-            $this->option('dry-run') ? 'would be deleted' : 'deleted',
-        ));
+        $this->info(
+            sprintf(
+                'Done. Total: %d record(s) %s.',
+                $totalDeleted,
+                $this->option('dry-run') ? 'would be deleted' : 'deleted',
+            ),
+        );
 
         return self::SUCCESS;
     }
 
-    protected function resolveModels(): array
+    /**
+     * @param string[]      $cleanableModels
+     * @param string[]|null $modelOptions
+     */
+    protected function resolveModels(array $cleanableModels, ?array $modelOptions): array
     {
-        $fromOption = $this->option('model');
-        if (!empty($fromOption)) {
-            return $fromOption;
+        if (!empty($modelOptions)) {
+            // test if all model options are present in the cleanableModels array
+            $areValidOptions = empty(array_diff($modelOptions, $cleanableModels));
+
+            return $areValidOptions ? $modelOptions : [];
         }
 
-        return config('resource-cleanup.models', []);
+        return $cleanableModels;
     }
 
-    protected function resolveCutoffDate(ResourceCleanup $cleanup): Carbon
+    public function getCleanableQuery(string $modelClass): Builder
     {
-        $days = $this->option('days');
-
-        return $days !== null
-            ? Carbon::now()->subDays((int) $days)
-            : $cleanup->defaultCutoffDate();
+        return is_subclass_of($modelClass, CleanableResource::class)
+            ? $modelClass::cleanable()
+            : $this->defaultCleanableQuery($modelClass);
     }
 
-    protected function modelCutoffDate(string $modelClass, Carbon $default): Carbon
+    private function defaultCleanableQuery(string $modelClass): Builder
     {
-        if (
-            is_subclass_of($modelClass, CleanableResource::class)
-            && !$this->option('days')
-        ) {
-            return $modelClass::getCleanupCutoffDate();
-        }
+        $days = config('resource-cleanup.default_retention_days');
+        $cutOffDate = Carbon::now()->subDays($days);
 
-        return $default;
-    }
+        $this->line(sprintf('Using default created_at cutoff date %s to clean up %s', $cutOffDate, $modelClass));
 
-    protected function dryRunCount(string $modelClass, Carbon $cutoffDate): int
-    {
-        $query = $modelClass::query()->where('created_at', '<', $cutoffDate);
-
-        if (in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive($modelClass))) {
-            $query->withTrashed()->onlyTrashed();
-        }
-
-        return $query->count();
+        return $modelClass::query()
+            ->where('created_at', '<', $cutOffDate)
+            ->withTrashed();
     }
 }
