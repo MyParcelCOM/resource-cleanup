@@ -16,7 +16,6 @@ WORKDIR /app
 
 # Install dependencies first (cached layer unless composer.json changes)
 COPY composer.json .
-RUN composer install --no-scripts --no-autoloader --prefer-dist
 
 # Copy the rest of the source
 COPY . .
