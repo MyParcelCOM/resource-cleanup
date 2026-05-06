@@ -12,6 +12,8 @@ RUN apk add --no-cache \
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+RUN git config --global --add safe.directory "/app"
+
 WORKDIR /app
 
 # Install dependencies first (cached layer unless composer.json changes)
