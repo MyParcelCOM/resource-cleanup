@@ -1,0 +1,10 @@
+# This file is intentionally gitignored.
+# Use it for personal local overrides — e.g. mounting a different PHP ini,
+# pointing at a local fork of a dependency, or adding one-off environment vars.
+#
+# Example:
+#
+# services:
+#   app:
+#     environment:
+#       COMPOSER_MEMORY_LIMIT: -1

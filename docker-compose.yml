@@ -1,0 +1,14 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount the source so edits are reflected instantly without rebuilding
+      - .:/app
+      # Persist the vendor directory across container restarts
+      - vendor:/app/vendor
+    command: vendor/bin/phpunit
+
+volumes:
+  vendor:

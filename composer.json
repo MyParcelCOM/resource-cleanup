@@ -1,0 +1,47 @@
+{
+    "name": "myparcelcom/resource-cleanup",
+    "description": "Clean up soft-deleted and expired records from your Laravel application after a configurable cutoff date.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "MyParcelCOM",
+            "email": "dev@myparcel.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/console": "^9.0|^10.0|^11.0|^12.0",
+        "illuminate/database": "^9.0|^10.0|^11.0|^12.0",
+        "illuminate/support": "^9.0|^10.0|^11.0|^12.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^7.0|^8.0|^9.0|^10.0",
+        "phpunit/phpunit": "^9.0|^10.0|^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "MyParcelCom\\ResourceCleanup\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MyParcelCom\\ResourceCleanup\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "MyParcelCom\\ResourceCleanup\\ResourceCleanupServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
+}
