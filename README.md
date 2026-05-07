@@ -60,26 +60,6 @@ Preview what would be deleted without deleting anything:
 php artisan resource-cleanup:run --dry-run
 ```
 
-### Programmatic Usage
-
-```php
-use MyParcelCom\ResourceCleanup\ResourceCleanup;
-
-$cleanup = app(ResourceCleanup::class);
-
-// Clean up using the default retention period from config
-$deleted = $cleanup->cleanup(\App\Models\Order::class);
-
-// Clean up with a specific cutoff date
-$deleted = $cleanup->cleanup(\App\Models\Order::class, Carbon::now()->subDays(30));
-
-// Clean up multiple models at once
-$results = $cleanup->cleanupAll([
-    \App\Models\Order::class    => null,           // uses default
-    \App\Models\AuditLog::class => Carbon::now()->subDays(14),
-]);
-```
-
 ### Per-Model Cutoff Dates
 
 Implement the `CleanableResource` contract on any model to define its own retention period:

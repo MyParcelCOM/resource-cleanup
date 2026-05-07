@@ -15,10 +15,6 @@ class ResourceCleanupServiceProvider extends ServiceProvider
             __DIR__ . '/../config/resource-cleanup.php',
             'resource-cleanup',
         );
-
-        $this->app->singleton(ResourceCleanup::class, function ($app) {
-            return new ResourceCleanup(config('resource-cleanup'));
-        });
     }
 
     public function boot(): void
