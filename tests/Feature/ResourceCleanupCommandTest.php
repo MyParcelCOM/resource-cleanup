@@ -22,7 +22,7 @@ class ResourceCleanupCommandTest extends TestCase
         TestResource::create(['name' => 'recent']);
 
         $this->artisan('resource-cleanup:run --dry-run')
-            ->expectsOutputToContain('3 record(s) would be deleted')
+            ->expectsOutput('[dry-run] ' . TestResource::class . ': 3 record(s) would be deleted.')
             ->assertSuccessful();
 
         // No records should have been deleted
@@ -40,7 +40,8 @@ class ResourceCleanupCommandTest extends TestCase
         TestResource::create(['name' => 'recent']);
 
         $this->artisan('resource-cleanup:run')
-            ->expectsOutputToContain('3 record(s) deleted')
+            ->expectsOutput(TestResource::class . ': 3 record(s) deleted.')
+            ->expectsOutput('Done. Total: 3 record(s) deleted.')
             ->assertSuccessful();
 
         $this->assertSame(0, TestResource::withTrashed()->where('name', 'like', 'old-%')->count());
@@ -58,7 +59,7 @@ class ResourceCleanupCommandTest extends TestCase
         TestResource::create(['name' => 'old', 'created_at' => $old])->delete();
 
         $this->artisan('resource-cleanup:run', ['--model' => [TestResource::class]])
-            ->expectsOutputToContain(TestResource::class)
+            ->expectsOutput(TestResource::class . ': 1 record(s) deleted.')
             ->assertSuccessful();
     }
 
@@ -105,7 +106,7 @@ class ResourceCleanupCommandTest extends TestCase
         $this->app['config']->set('resource-cleanup.models', []);
 
         $this->artisan('resource-cleanup:run')
-            ->expectsOutputToContain('No cleanable models defined')
+            ->expectsOutput('No cleanable models defined. Add class-strings to resource-cleanup.models in your config, e.g. App\\Models\\YourModel.')
             ->assertFailed();
     }
 
@@ -114,7 +115,7 @@ class ResourceCleanupCommandTest extends TestCase
         $this->app['config']->set('resource-cleanup.models', [TestResource::class]);
 
         $this->artisan('resource-cleanup:run', ['--model' => ['App\\Models\\NonExistent']])
-            ->expectsOutputToContain('Invalid model options specified')
+            ->expectsOutput("Invalid model options specified. Valid models are: \n" . TestResource::class)
             ->assertFailed();
     }
 }
