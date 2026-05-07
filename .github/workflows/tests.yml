@@ -67,7 +67,7 @@ jobs:
                            "orchestra/testbench:${{ matrix.testbench }}" \
                            --no-update
 
-          composer update --prefer-stable --prefer-dist --no-interaction
+          composer update --prefer-stable --prefer-dist --no-interaction --no-audit --no-blocking
 
       - name: Run tests
         run: vendor/bin/phpunit
