@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
 use MyParcelCom\ResourceCleanup\Contracts\CleanableResource;
 
 class ResourceCleanupCommand extends Command
@@ -92,6 +93,9 @@ class ResourceCleanupCommand extends Command
         return $cleanableModels;
     }
 
+    /**
+     * @param class-string<Model> $modelClass
+     */
     public function getCleanableQuery(string $modelClass): Builder
     {
         return is_subclass_of($modelClass, CleanableResource::class)
@@ -99,6 +103,9 @@ class ResourceCleanupCommand extends Command
             : $this->defaultCleanableQuery($modelClass);
     }
 
+    /**
+     * @param class-string<Model> $modelClass
+     */
     private function defaultCleanableQuery(string $modelClass): Builder
     {
         $days = config('resource-cleanup.default_retention_days');
