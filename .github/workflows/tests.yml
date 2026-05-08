@@ -9,7 +9,7 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-  
+
 jobs:
   test:
     name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
@@ -23,34 +23,43 @@ jobs:
           - php: "8.1"
             laravel: "8.*"
             testbench: "^6.0"
+            allow_insecure: true
           # Laravel 9 — testbench ^7.0 supports PHP 8.0–8.1
           - php: "8.1"
             laravel: "9.*"
             testbench: "^7.0"
+            allow_insecure: true
           # Laravel 10 — testbench ^8.0 supports PHP 8.1–8.3
           - php: "8.1"
             laravel: "10.*"
             testbench: "^8.0"
+            allow_insecure: false
           - php: "8.2"
             laravel: "10.*"
             testbench: "^8.0"
+            allow_insecure: false
           - php: "8.3"
             laravel: "10.*"
             testbench: "^8.0"
+            allow_insecure: false
           # Laravel 11 — testbench ^9.0 supports PHP 8.2–8.3
           - php: "8.2"
             laravel: "11.*"
             testbench: "^9.0"
+            allow_insecure: false
           - php: "8.3"
             laravel: "11.*"
             testbench: "^9.0"
+            allow_insecure: false
           # Laravel 12 — testbench ^10.0 supports PHP 8.2–8.3
           - php: "8.2"
             laravel: "12.*"
             testbench: "^10.0"
+            allow_insecure: false
           - php: "8.3"
             laravel: "12.*"
             testbench: "^10.0"
+            allow_insecure: false
 
     steps:
       - name: Checkout
@@ -63,6 +72,10 @@ jobs:
           extensions: mbstring, pdo, pdo_sqlite, sqlite3
           coverage: none
 
+      - name: Allow insecure packages
+        if: ${{ matrix.allow_insecure == true }}
+        run: composer config audit.block-insecure false
+
       - name: Install dependencies
         run: |
           composer require "illuminate/support:${{ matrix.laravel }}" \
@@ -71,7 +84,6 @@ jobs:
                            "orchestra/testbench:${{ matrix.testbench }}" \
                            --no-update
 
-          composer config audit.block-insecure false
           composer update --prefer-stable --prefer-dist --no-interaction
 
       - name: Run tests
