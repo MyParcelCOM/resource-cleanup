@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use MyParcelCom\ResourceCleanup\Contracts\CleanableResource;
+use MyParcelCom\ResourceCleanup\Exceptions\InvalidModelConfigurationException;
+use MyParcelCom\ResourceCleanup\Exceptions\NoCleanableModelsConfiguredException;
 
 class ResourceCleanupCommand extends Command
 {
@@ -22,11 +24,10 @@ class ResourceCleanupCommand extends Command
 
     public function handle(): int
     {
-        $cleanableModels = config('resource-cleanup.models', []);
-        if (empty($cleanableModels)) {
-            $this->error(
-                'No cleanable models defined. Add class-strings to resource-cleanup.models in your config, e.g. App\\Models\\YourModel.',
-            );
+        try {
+            $cleanableModels = $this->getCleanableModelsConfig();
+        } catch (NoCleanableModelsConfiguredException|InvalidModelConfigurationException $e) {
+            $this->error($e->getMessage());
 
             return self::FAILURE;
         }
@@ -79,6 +80,28 @@ class ResourceCleanupCommand extends Command
         );
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @return array<class-string<Model>>
+     *
+     * @throws NoCleanableModelsConfiguredException
+     * @throws InvalidModelConfigurationException
+     */
+    private function getCleanableModelsConfig(): array
+    {
+        $cleanableModels = config('resource-cleanup.models', []);
+        if (empty($cleanableModels)) {
+            throw new NoCleanableModelsConfiguredException();
+        }
+
+        foreach ($cleanableModels as $modelClass) {
+            if (!is_subclass_of($modelClass, Model::class)) {
+                throw new InvalidModelConfigurationException($modelClass);
+            }
+        }
+
+        return $cleanableModels;
     }
 
     /**
