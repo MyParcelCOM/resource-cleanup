@@ -10,8 +10,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use MyParcelCom\ResourceCleanup\Contracts\CleanableResource;
 use MyParcelCom\ResourceCleanup\Exceptions\InvalidModelConfigurationException;
+use MyParcelCom\ResourceCleanup\Exceptions\MissingCreatedAtIndexException;
 use MyParcelCom\ResourceCleanup\Exceptions\NoCleanableModelsConfiguredException;
 
 class ResourceCleanupCommand extends Command
@@ -43,7 +45,13 @@ class ResourceCleanupCommand extends Command
 
         $totalDeleted = 0;
         foreach ($models as $modelClass) {
-            $query = $this->getCleanableQuery($modelClass);
+            try {
+                $query = $this->getCleanableQuery($modelClass);
+            } catch (MissingCreatedAtIndexException $e) {
+                $this->error($e->getMessage());
+
+                return self::FAILURE;
+            }
 
             if ($this->option('dry-run')) {
                 $count = $query->count();
@@ -135,6 +143,8 @@ class ResourceCleanupCommand extends Command
      */
     private function defaultCleanableQuery(string $modelClass): Builder
     {
+        $this->validateCreatedAtIndex($modelClass);
+
         $days = config('resource-cleanup.default_retention_days');
         $cutOffDate = Carbon::now()->subDays($days);
 
@@ -146,5 +156,20 @@ class ResourceCleanupCommand extends Command
         }
 
         return $query;
+    }
+
+    /**
+     * @param class-string<Model> $modelClass
+     */
+    public function validateCreatedAtIndex(string $modelClass): void
+    {
+        $table = resolve($modelClass)->getTable();
+        $indexes = DB::select(
+            "SELECT indexname FROM pg_indexes WHERE tablename = ? AND indexdef LIKE '%created_at%'",
+            [$table],
+        );
+        if (empty($indexes)) {
+            throw new MissingCreatedAtIndexException($table);
+        }
     }
 }
