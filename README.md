@@ -15,6 +15,12 @@ A Laravel package to permanently delete soft-deleted or expired records based on
 composer require myparcelcom/resource-cleanup
 ```
 
+Update Laravel's package auto-discovery cache
+
+```bash
+php artisan package:discover
+```
+
 Publish the config file:
 
 ```bash

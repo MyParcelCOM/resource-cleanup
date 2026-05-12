@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use MyParcelCom\ResourceCleanup\Contracts\CleanableResource;
 
 class ResourceCleanupCommand extends Command
@@ -33,7 +34,7 @@ class ResourceCleanupCommand extends Command
         $models = $this->resolveModels($cleanableModels, $this->option('model'));
         if (empty($models)) {
             $this->error(
-                sprintf("Invalid model options specified. Valid models are: \n%s", implode("\n", $cleanableModels)),
+                sprintf("Invalid model options specified. Valid models are:\n%s", implode("\n", $cleanableModels)),
             );
 
             return self::FAILURE;
@@ -113,8 +114,11 @@ class ResourceCleanupCommand extends Command
 
         $this->line(sprintf('Using default created_at cutoff date %s to clean up %s', $cutOffDate, $modelClass));
 
-        return $modelClass::query()
-            ->where('created_at', '<', $cutOffDate)
-            ->withTrashed();
+        $query = $modelClass::query()->where('created_at', '<', $cutOffDate);
+        if (in_array(SoftDeletes::class, class_uses_recursive($modelClass), true)) {
+            $query->withTrashed();
+        }
+
+        return $query;
     }
 }
