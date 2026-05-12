@@ -55,12 +55,15 @@ class ResourceCleanupCommand extends Command
             }
 
             $deleted = 0;
-            $query->chunkById(100, function (Collection $records) use (&$deleted) {
-                foreach ($records as $record) {
-                    $record->forceDelete();
-                    $deleted++;
-                }
-            });
+            $query->chunkById(
+                config('resource-cleanup.cleanup_chunk_size'),
+                function (Collection $records) use ($modelClass, &$deleted) {
+                    $deleted += $modelClass::query()->whereIn('id', $records->pluck('id'))->forceDelete();
+
+                    // 25ms sleep gives the DB breathing room for consecutive queries
+                    usleep(25000);
+                },
+            );
 
             $this->line(sprintf('  %s: %d record(s) deleted.', $modelClass, $deleted));
 
@@ -82,7 +85,7 @@ class ResourceCleanupCommand extends Command
      * @param string[]      $cleanableModels
      * @param string[]|null $modelOptions
      */
-    protected function resolveModels(array $cleanableModels, ?array $modelOptions): array
+    private function resolveModels(array $cleanableModels, ?array $modelOptions): array
     {
         if (!empty($modelOptions)) {
             // test if all model options are present in the cleanableModels array
@@ -97,7 +100,7 @@ class ResourceCleanupCommand extends Command
     /**
      * @param class-string<Model> $modelClass
      */
-    public function getCleanableQuery(string $modelClass): Builder
+    private function getCleanableQuery(string $modelClass): Builder
     {
         return is_subclass_of($modelClass, CleanableResource::class)
             ? $modelClass::cleanable()
