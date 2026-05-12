@@ -223,4 +223,20 @@ class ResourceCleanupCommandTest extends TestCase
             ->expectsOutput("Table 'test_resources_without_index' has no index on created_at. Aborting.")
             ->assertFailed();
     }
+
+    public function test_resource_cleanup_skips_index_check_when_flag_is_provided(): void
+    {
+        $this->app['config']->set('resource-cleanup.models', [TestResourceWithoutIndex::class]);
+
+        $old = Carbon::now()->subDays(91);
+        TestResourceWithoutIndex::create(['name' => 'old', 'created_at' => $old]);
+        TestResourceWithoutIndex::create(['name' => 'recent']);
+
+        $this->artisan('resource-cleanup:run --skip-index-check')
+            ->expectsOutput('Done. Total: 1 record(s) deleted.')
+            ->assertSuccessful();
+
+        $this->assertSame(0, TestResourceWithoutIndex::where('name', 'old')->count());
+        $this->assertSame(1, TestResourceWithoutIndex::count());
+    }
 }

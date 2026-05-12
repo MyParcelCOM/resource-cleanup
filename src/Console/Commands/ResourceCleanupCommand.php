@@ -20,7 +20,8 @@ class ResourceCleanupCommand extends Command
 {
     protected $signature = 'resource-cleanup:run
                             {--model=* : One or more fully-qualified model class names to clean up}
-                            {--dry-run : Show what would be deleted without actually deleting}';
+                            {--dry-run : Show what would be deleted without actually deleting}
+                            {--skip-index-check : Skip the created_at index validation (not recommended, may cause slow queries)}';
 
     protected $description = 'Permanently delete records older than the configured cutoff date.';
 
@@ -143,7 +144,9 @@ class ResourceCleanupCommand extends Command
      */
     private function defaultCleanableQuery(string $modelClass): Builder
     {
-        $this->validateCreatedAtIndex($modelClass);
+        if (!$this->option('skip-index-check')) {
+            $this->validateCreatedAtIndex($modelClass);
+        }
 
         $days = config('resource-cleanup.default_retention_days');
         $cutOffDate = Carbon::now()->subDays($days);
