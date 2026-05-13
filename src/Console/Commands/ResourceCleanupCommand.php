@@ -10,23 +10,27 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use MyParcelCom\ResourceCleanup\Contracts\CleanableResource;
+use MyParcelCom\ResourceCleanup\Exceptions\InvalidModelConfigurationException;
+use MyParcelCom\ResourceCleanup\Exceptions\MissingCreatedAtIndexException;
+use MyParcelCom\ResourceCleanup\Exceptions\NoCleanableModelsConfiguredException;
 
 class ResourceCleanupCommand extends Command
 {
     protected $signature = 'resource-cleanup:run
                             {--model=* : One or more fully-qualified model class names to clean up}
-                            {--dry-run : Show what would be deleted without actually deleting}';
+                            {--dry-run : Show what would be deleted without actually deleting}
+                            {--skip-index-check : Skip the created_at index validation (not recommended, may cause slow queries)}';
 
     protected $description = 'Permanently delete records older than the configured cutoff date.';
 
     public function handle(): int
     {
-        $cleanableModels = config('resource-cleanup.models', []);
-        if (empty($cleanableModels)) {
-            $this->error(
-                'No cleanable models defined. Add class-strings to resource-cleanup.models in your config, e.g. App\\Models\\YourModel.',
-            );
+        try {
+            $cleanableModels = $this->getCleanableModelsConfig();
+        } catch (NoCleanableModelsConfiguredException|InvalidModelConfigurationException $e) {
+            $this->error($e->getMessage());
 
             return self::FAILURE;
         }
@@ -42,7 +46,13 @@ class ResourceCleanupCommand extends Command
 
         $totalDeleted = 0;
         foreach ($models as $modelClass) {
-            $query = $this->getCleanableQuery($modelClass);
+            try {
+                $query = $this->getCleanableQuery($modelClass);
+            } catch (MissingCreatedAtIndexException $e) {
+                $this->error($e->getMessage());
+
+                return self::FAILURE;
+            }
 
             if ($this->option('dry-run')) {
                 $count = $query->count();
@@ -55,12 +65,15 @@ class ResourceCleanupCommand extends Command
             }
 
             $deleted = 0;
-            $query->chunkById(100, function (Collection $records) use (&$deleted) {
-                foreach ($records as $record) {
-                    $record->forceDelete();
-                    $deleted++;
-                }
-            });
+            $query->chunkById(
+                config('resource-cleanup.cleanup_chunk_size'),
+                function (Collection $records) use ($modelClass, &$deleted) {
+                    $deleted += $modelClass::query()->whereIn('id', $records->pluck('id'))->forceDelete();
+
+                    // 25ms sleep gives the DB breathing room for consecutive queries
+                    usleep(25000);
+                },
+            );
 
             $this->line(sprintf('%s: %d record(s) deleted.', $modelClass, $deleted));
 
@@ -79,10 +92,32 @@ class ResourceCleanupCommand extends Command
     }
 
     /**
+     * @return array<class-string<Model>>
+     *
+     * @throws NoCleanableModelsConfiguredException
+     * @throws InvalidModelConfigurationException
+     */
+    private function getCleanableModelsConfig(): array
+    {
+        $cleanableModels = config('resource-cleanup.models', []);
+        if (empty($cleanableModels)) {
+            throw new NoCleanableModelsConfiguredException();
+        }
+
+        foreach ($cleanableModels as $modelClass) {
+            if (!is_subclass_of($modelClass, Model::class)) {
+                throw new InvalidModelConfigurationException($modelClass);
+            }
+        }
+
+        return $cleanableModels;
+    }
+
+    /**
      * @param string[]      $cleanableModels
      * @param string[]|null $modelOptions
      */
-    protected function resolveModels(array $cleanableModels, ?array $modelOptions): array
+    private function resolveModels(array $cleanableModels, ?array $modelOptions): array
     {
         if (!empty($modelOptions)) {
             // test if all model options are present in the cleanableModels array
@@ -97,7 +132,7 @@ class ResourceCleanupCommand extends Command
     /**
      * @param class-string<Model> $modelClass
      */
-    public function getCleanableQuery(string $modelClass): Builder
+    private function getCleanableQuery(string $modelClass): Builder
     {
         return is_subclass_of($modelClass, CleanableResource::class)
             ? $modelClass::cleanable()
@@ -109,6 +144,10 @@ class ResourceCleanupCommand extends Command
      */
     private function defaultCleanableQuery(string $modelClass): Builder
     {
+        if (!$this->option('skip-index-check')) {
+            $this->validateCreatedAtIndex($modelClass);
+        }
+
         $days = config('resource-cleanup.default_retention_days');
         $cutOffDate = Carbon::now()->subDays($days);
 
@@ -120,5 +159,20 @@ class ResourceCleanupCommand extends Command
         }
 
         return $query;
+    }
+
+    /**
+     * @param class-string<Model> $modelClass
+     */
+    private function validateCreatedAtIndex(string $modelClass): void
+    {
+        $table = resolve($modelClass)->getTable();
+        $indexes = DB::select(
+            "SELECT indexname FROM pg_indexes WHERE tablename = ? AND indexdef LIKE '%created_at%'",
+            [$table],
+        );
+        if (empty($indexes)) {
+            throw new MissingCreatedAtIndexException($table);
+        }
     }
 }

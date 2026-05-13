@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use MyParcelCom\ResourceCleanup\Tests\Models\TestCleanableResource;
 use MyParcelCom\ResourceCleanup\Tests\Models\TestCleanableSoftDeletableResource;
 use MyParcelCom\ResourceCleanup\Tests\Models\TestResource;
+use MyParcelCom\ResourceCleanup\Tests\Models\TestResourceWithoutIndex;
 use MyParcelCom\ResourceCleanup\Tests\Models\TestSoftDeletableResource;
 use MyParcelCom\ResourceCleanup\Tests\TestCase;
 
@@ -215,5 +216,30 @@ class ResourceCleanupCommandTest extends TestCase
         $this->artisan('resource-cleanup:run', ['--model' => ['App\\Models\\NonExistent']])
             ->expectsOutput("Invalid model options specified. Valid models are:\n" . TestSoftDeletableResource::class)
             ->assertFailed();
+    }
+
+    public function test_resource_cleanup_fails_when_model_table_has_no_created_at_index(): void
+    {
+        $this->app['config']->set('resource-cleanup.models', [TestResourceWithoutIndex::class]);
+
+        $this->artisan('resource-cleanup:run')
+            ->expectsOutput("Table 'test_resources_without_index' has no index on created_at. Aborting.")
+            ->assertFailed();
+    }
+
+    public function test_resource_cleanup_skips_index_check_when_flag_is_provided(): void
+    {
+        $this->app['config']->set('resource-cleanup.models', [TestResourceWithoutIndex::class]);
+
+        $old = Carbon::now()->subDays(91);
+        TestResourceWithoutIndex::create(['name' => 'old', 'created_at' => $old]);
+        TestResourceWithoutIndex::create(['name' => 'recent']);
+
+        $this->artisan('resource-cleanup:run --skip-index-check')
+            ->expectsOutput('Done. Total: 1 record(s) deleted.')
+            ->assertSuccessful();
+
+        $this->assertSame(0, TestResourceWithoutIndex::where('name', 'old')->count());
+        $this->assertSame(1, TestResourceWithoutIndex::count());
     }
 }

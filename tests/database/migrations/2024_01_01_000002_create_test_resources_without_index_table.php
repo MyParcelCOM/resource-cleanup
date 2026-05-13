@@ -10,16 +10,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('test_resources', function (Blueprint $table) {
+        Schema::create('test_resources_without_index', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->timestamps();
-            $table->index('created_at');
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('test_resources');
+        Schema::dropIfExists('test_resources_without_index');
     }
 };
