@@ -29,6 +29,7 @@ class ResourceCleanupCommandTest extends TestCase
         TestResource::create(['name' => 'recent']);
 
         $this->artisan('resource-cleanup:run --dry-run')
+            ->expectsOutput('[dry-run] ' . TestResource::class . ': 3 record(s) would be deleted.')
             ->expectsOutput('Done. Total: 3 record(s) would be deleted.')
             ->assertSuccessful();
 
@@ -63,10 +64,12 @@ class ResourceCleanupCommandTest extends TestCase
         $old = Carbon::now()->subDays(91);
         TestResource::create(['name' => 'old-1', 'created_at' => $old]);
         TestResource::create(['name' => 'old-2', 'created_at' => $old]);
+        TestResource::create(['name' => 'old-3', 'created_at' => $old]);
         TestResource::create(['name' => 'recent']);
 
         $this->artisan('resource-cleanup:run')
-            ->expectsOutput('Done. Total: 2 record(s) deleted.')
+            ->expectsOutput(TestResource::class . ': 3 record(s) deleted.')
+            ->expectsOutput('Done. Total: 3 record(s) deleted.')
             ->assertSuccessful();
 
         $this->assertSame(0, TestResource::where('name', 'like', 'old-%')->count());
@@ -119,7 +122,7 @@ class ResourceCleanupCommandTest extends TestCase
         TestSoftDeletableResource::create(['name' => 'old', 'created_at' => $old])->delete();
 
         $this->artisan('resource-cleanup:run', ['--model' => [TestSoftDeletableResource::class]])
-            ->expectsOutput('  ' . TestSoftDeletableResource::class . ': 1 record(s) deleted.')
+            ->expectsOutput(TestSoftDeletableResource::class . ': 1 record(s) deleted.')
             ->assertSuccessful();
     }
 
