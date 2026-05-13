@@ -7,3 +7,24 @@ services:
       # Mount the source so edits are reflected instantly without rebuilding
       - .:/app
     command: vendor/bin/phpunit
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: resource_cleanup_testing
+      DB_USERNAME: testing
+      DB_PASSWORD: testing
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: resource_cleanup_testing
+      POSTGRES_USER: testing
+      POSTGRES_PASSWORD: testing
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U testing -d resource_cleanup_testing" ]
+      interval: 3s
+      timeout: 5s
+      retries: 10
