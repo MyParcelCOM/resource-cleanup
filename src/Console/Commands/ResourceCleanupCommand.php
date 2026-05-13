@@ -47,7 +47,7 @@ class ResourceCleanupCommand extends Command
             if ($this->option('dry-run')) {
                 $count = $query->count();
 
-                $this->line(sprintf('  [dry-run] %s: %d record(s) would be deleted.', $modelClass, $count));
+                $this->line(sprintf('[dry-run] %s: %d record(s) would be deleted.', $modelClass, $count));
 
                 $totalDeleted += $count;
 
@@ -62,7 +62,7 @@ class ResourceCleanupCommand extends Command
                 }
             });
 
-            $this->line(sprintf('  %s: %d record(s) deleted.', $modelClass, $deleted));
+            $this->line(sprintf('%s: %d record(s) deleted.', $modelClass, $deleted));
 
             $totalDeleted += $deleted;
         }
