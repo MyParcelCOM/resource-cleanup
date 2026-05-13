@@ -164,7 +164,7 @@ class ResourceCleanupCommand extends Command
     /**
      * @param class-string<Model> $modelClass
      */
-    public function validateCreatedAtIndex(string $modelClass): void
+    private function validateCreatedAtIndex(string $modelClass): void
     {
         $table = resolve($modelClass)->getTable();
         $indexes = DB::select(
