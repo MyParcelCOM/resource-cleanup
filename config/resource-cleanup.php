@@ -14,7 +14,7 @@ return [
     | implementing the CleanableResource contract.
     |
     */
-    'default_retention_days' => env('RESOURCE_CLEANUP_RETENTION_DAYS', 90),
+    'default_retention_days' => env('RESOURCE_CLEANUP_RETENTION_DAYS', 180),
 
     /*
     |--------------------------------------------------------------------------
