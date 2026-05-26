@@ -45,7 +45,7 @@ class ResourceCleanupCommand extends Command
             return self::FAILURE;
         }
 
-        $limit = $this->option('limit') !== null ? (int) $this->option('limit') : 0;
+        $limit = (int) ($this->option('limit') ?? 0);
 
         $totalDeleted = 0;
         foreach ($models as $modelClass) {
