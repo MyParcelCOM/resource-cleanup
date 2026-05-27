@@ -22,7 +22,7 @@ class ResourceCleanupCommandTest extends TestCase
     {
         $this->app['config']->set('resource-cleanup.models', [TestResource::class]);
 
-        $old = Carbon::now()->subDays(91);
+        $old = Carbon::now()->subDays(181);
         TestResource::create(['name' => 'old-1', 'created_at' => $old]);
         TestResource::create(['name' => 'old-2', 'created_at' => $old]);
         TestResource::create(['name' => 'old-3', 'created_at' => $old]);
@@ -40,7 +40,7 @@ class ResourceCleanupCommandTest extends TestCase
     {
         $this->app['config']->set('resource-cleanup.models', [TestSoftDeletableResource::class]);
 
-        $old = Carbon::now()->subDays(91);
+        $old = Carbon::now()->subDays(181);
         TestSoftDeletableResource::create(['name' => 'old-1', 'created_at' => $old])->delete();
         TestSoftDeletableResource::create(['name' => 'old-2', 'created_at' => $old])->delete();
         TestSoftDeletableResource::create(['name' => 'old-3', 'created_at' => $old])->delete();
@@ -61,7 +61,7 @@ class ResourceCleanupCommandTest extends TestCase
     {
         $this->app['config']->set('resource-cleanup.models', [TestResource::class]);
 
-        $old = Carbon::now()->subDays(91);
+        $old = Carbon::now()->subDays(181);
         TestResource::create(['name' => 'old-1', 'created_at' => $old]);
         TestResource::create(['name' => 'old-2', 'created_at' => $old]);
         TestResource::create(['name' => 'old-3', 'created_at' => $old]);
@@ -80,7 +80,7 @@ class ResourceCleanupCommandTest extends TestCase
     {
         $this->app['config']->set('resource-cleanup.models', [TestSoftDeletableResource::class]);
 
-        $old = Carbon::now()->subDays(91);
+        $old = Carbon::now()->subDays(181);
         TestSoftDeletableResource::create(['name' => 'old-deleted-1', 'created_at' => $old])->delete();
         TestSoftDeletableResource::create(['name' => 'old-deleted-2', 'created_at' => $old])->delete();
         TestSoftDeletableResource::create(['name' => 'old-not-deleted', 'created_at' => $old]);
@@ -118,7 +118,7 @@ class ResourceCleanupCommandTest extends TestCase
             TestCleanableSoftDeletableResource::class,
         ]);
 
-        $old = Carbon::now()->subDays(91);
+        $old = Carbon::now()->subDays(181);
         TestSoftDeletableResource::create(['name' => 'old', 'created_at' => $old])->delete();
 
         $this->artisan('resource-cleanup:run', ['--model' => [TestSoftDeletableResource::class]])
@@ -204,7 +204,7 @@ class ResourceCleanupCommandTest extends TestCase
     {
         $this->app['config']->set('resource-cleanup.models', [TestResource::class]);
 
-        $old = Carbon::now()->subDays(91);
+        $old = Carbon::now()->subDays(181);
         TestResource::create(['name' => 'old-1', 'created_at' => $old]);
         TestResource::create(['name' => 'old-2', 'created_at' => $old]);
         TestResource::create(['name' => 'old-3', 'created_at' => $old]);
@@ -223,7 +223,7 @@ class ResourceCleanupCommandTest extends TestCase
     {
         $this->app['config']->set('resource-cleanup.models', [TestResource::class]);
 
-        $old = Carbon::now()->subDays(91);
+        $old = Carbon::now()->subDays(181);
         TestResource::create(['name' => 'old-1', 'created_at' => $old]);
         TestResource::create(['name' => 'old-2', 'created_at' => $old]);
         TestResource::create(['name' => 'old-3', 'created_at' => $old]);
@@ -273,7 +273,7 @@ class ResourceCleanupCommandTest extends TestCase
     {
         $this->app['config']->set('resource-cleanup.models', [TestResourceWithoutIndex::class]);
 
-        $old = Carbon::now()->subDays(91);
+        $old = Carbon::now()->subDays(181);
         TestResourceWithoutIndex::create(['name' => 'old', 'created_at' => $old]);
         TestResourceWithoutIndex::create(['name' => 'recent']);
 
