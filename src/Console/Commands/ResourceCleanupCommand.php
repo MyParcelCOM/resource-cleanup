@@ -21,7 +21,8 @@ class ResourceCleanupCommand extends Command
     protected $signature = 'resource-cleanup:run
                             {--model=* : One or more fully-qualified model class names to clean up}
                             {--dry-run : Show what would be deleted without actually deleting}
-                            {--skip-index-check : Skip the created_at index validation (not recommended, may cause slow queries)}';
+                            {--skip-index-check : Skip the created_at index validation (not recommended, may cause slow queries)}
+                            {--limit= : Maximum number of records to delete per model (0 or omitted means no limit)}';
 
     protected $description = 'Permanently delete records older than the configured cutoff date.';
 
@@ -44,6 +45,8 @@ class ResourceCleanupCommand extends Command
             return self::FAILURE;
         }
 
+        $limit = (int) ($this->option('limit') ?? 0);
+
         $totalDeleted = 0;
         foreach ($models as $modelClass) {
             try {
@@ -56,10 +59,11 @@ class ResourceCleanupCommand extends Command
 
             if ($this->option('dry-run')) {
                 $count = $query->count();
+                $effective = $limit > 0 ? min($count, $limit) : $count;
 
-                $this->line(sprintf('[dry-run] %s: %d record(s) would be deleted.', $modelClass, $count));
+                $this->line(sprintf('[dry-run] %s: %d record(s) would be deleted.', $modelClass, $effective));
 
-                $totalDeleted += $count;
+                $totalDeleted += $effective;
 
                 continue;
             }
@@ -67,11 +71,22 @@ class ResourceCleanupCommand extends Command
             $deleted = 0;
             $query->chunkById(
                 config('resource-cleanup.cleanup_chunk_size'),
-                function (Collection $records) use ($modelClass, &$deleted) {
-                    $deleted += $modelClass::query()->whereIn('id', $records->pluck('id'))->forceDelete();
+                function (Collection $records) use ($modelClass, &$deleted, $limit) {
+                    $ids = $records->pluck('id');
+
+                    if ($limit > 0) {
+                        $ids = $ids->take($limit - $deleted);
+                    }
+
+                    $deleted += $modelClass::query()->whereIn('id', $ids)->forceDelete();
 
                     // 25ms sleep gives the DB breathing room for consecutive queries
                     usleep(25000);
+
+                    // break out of query chunk loop if limit is reached
+                    if ($limit > 0 && $deleted >= $limit) {
+                        return false;
+                    }
                 },
             );
 
