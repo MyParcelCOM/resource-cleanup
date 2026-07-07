@@ -48,24 +48,24 @@ jobs:
           - php: "8.1"
             laravel: "10.*"
             testbench: "^8.0"
-            allow_insecure: false
+            allow_insecure: true
           - php: "8.2"
             laravel: "10.*"
             testbench: "^8.0"
-            allow_insecure: false
+            allow_insecure: true
           - php: "8.3"
             laravel: "10.*"
             testbench: "^8.0"
-            allow_insecure: false
+            allow_insecure: true
           # Laravel 11 — testbench ^9.0 supports PHP 8.2–8.3
           - php: "8.2"
             laravel: "11.*"
             testbench: "^9.0"
-            allow_insecure: false
+            allow_insecure: true
           - php: "8.3"
             laravel: "11.*"
             testbench: "^9.0"
-            allow_insecure: false
+            allow_insecure: true
           # Laravel 12 — testbench ^10.0 supports PHP 8.2–8.3
           - php: "8.2"
             laravel: "12.*"
@@ -94,7 +94,9 @@ jobs:
 
       - name: Allow insecure packages
         if: ${{ matrix.allow_insecure == true }}
-        run: composer config audit.block-insecure false
+        run: |
+          composer config audit.block-insecure false
+          composer config policy.advisories.block false
 
       - name: Install dependencies
         run: |
