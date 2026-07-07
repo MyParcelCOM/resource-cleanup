@@ -75,6 +75,11 @@ jobs:
             laravel: "12.*"
             testbench: "^10.0"
             allow_insecure: false
+          # Laravel 13 — testbench ^11.0 supports PHP 8.3–8.4
+          - php: "8.4"
+            laravel: "13.*"
+            testbench: "^11.0"
+            allow_insecure: false
 
     steps:
       - name: Checkout
