@@ -68,26 +68,28 @@ class ResourceCleanupCommand extends Command
                 continue;
             }
 
+            $primaryKey = resolve($modelClass)->getKeyName();
             $deleted = 0;
             $query->chunkById(
                 config('resource-cleanup.cleanup_chunk_size'),
-                function (Collection $records) use ($modelClass, &$deleted, $limit) {
-                    $ids = $records->pluck('id');
+                function (Collection $records) use ($query, $primaryKey, &$deleted, $limit) {
+                    $ids = $records->pluck($primaryKey);
 
                     if ($limit > 0) {
                         $ids = $ids->take($limit - $deleted);
                     }
 
-                    $deleted += $modelClass::query()->whereIn('id', $ids)->forceDelete();
+                    // Clone $query to preserve all its WHERE conditions (cutoff date, soft-delete
+                    // scope, etc.) and narrow to only the IDs collected in this chunk.
+                    $deleted += (clone $query)->whereIn($primaryKey, $ids)->forceDelete();
 
                     // 25ms sleep gives the DB breathing room for consecutive queries
                     usleep(25000);
 
                     // break out of query chunk loop if limit is reached
-                    if ($limit > 0 && $deleted >= $limit) {
-                        return false;
-                    }
+                    return !($limit > 0 && $deleted >= $limit);
                 },
+                $primaryKey,
             );
 
             $this->line(sprintf('%s: %d record(s) deleted.', $modelClass, $deleted));

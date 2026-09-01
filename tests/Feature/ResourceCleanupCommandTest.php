@@ -284,4 +284,39 @@ class ResourceCleanupCommandTest extends TestCase
         $this->assertSame(0, TestResourceWithoutIndex::where('name', 'old')->count());
         $this->assertSame(1, TestResourceWithoutIndex::count());
     }
+
+    // -------------------------------------------------------------------------
+    // Non-unique primary key safety
+    // -------------------------------------------------------------------------
+
+    public function test_cleanup_does_not_delete_new_record_that_reuses_an_old_key_value(): void
+    {
+        $this->app['config']->set('resource-cleanup.models', [TestNonUniqueKeyResource::class]);
+
+        $sharedUuid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+        $old = Carbon::now()->subDays(181);
+
+        // Old record — should be deleted.
+        DB::table('test_non_unique_key_resources')->insert([
+            'uuid'       => $sharedUuid,
+            'name'       => 'old',
+            'created_at' => $old,
+            'updated_at' => $old,
+        ]);
+
+        // New record reusing the same uuid — must survive.
+        DB::table('test_non_unique_key_resources')->insert([
+            'uuid'       => $sharedUuid,
+            'name'       => 'new',
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        $this->artisan('resource-cleanup:run')
+            ->expectsOutput('Done. Total: 1 record(s) deleted.')
+            ->assertSuccessful();
+
+        $this->assertSame(0, TestNonUniqueKeyResource::where('name', 'old')->count());
+        $this->assertSame(1, TestNonUniqueKeyResource::where('name', 'new')->count());
+    }
 }
