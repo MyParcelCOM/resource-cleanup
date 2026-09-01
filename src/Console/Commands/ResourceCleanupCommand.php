@@ -50,7 +50,7 @@ class ResourceCleanupCommand extends Command
         $totalDeleted = 0;
         foreach ($models as $modelClass) {
             try {
-                $query = $this->getCleanableQuery($modelClass);
+                $query = $this->cleanableQuery($modelClass);
             } catch (MissingCreatedAtIndexException $e) {
                 $this->error($e->getMessage());
 
@@ -148,19 +148,15 @@ class ResourceCleanupCommand extends Command
 
     /**
      * @param class-string<Model> $modelClass
+     *
+     * @throws MissingCreatedAtIndexException
      */
-    private function getCleanableQuery(string $modelClass): Builder
+    private function cleanableQuery(string $modelClass): Builder
     {
-        return is_subclass_of($modelClass, CleanableResource::class)
-            ? $modelClass::cleanable()
-            : $this->defaultCleanableQuery($modelClass);
-    }
+        if (is_subclass_of($modelClass, CleanableResource::class)) {
+            return $modelClass::cleanable();
+        }
 
-    /**
-     * @param class-string<Model> $modelClass
-     */
-    private function defaultCleanableQuery(string $modelClass): Builder
-    {
         if (!$this->option('skip-index-check')) {
             $this->validateCreatedAtIndex($modelClass);
         }
