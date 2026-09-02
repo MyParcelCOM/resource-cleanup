@@ -68,7 +68,7 @@ class ResourceCleanupCommand extends Command
                 continue;
             }
 
-            $primaryKey = resolve($modelClass)->getKeyName();
+            $primaryKey = (new $modelClass)->getKeyName();
             $deleted = 0;
             $query->chunkById(
                 config('resource-cleanup.cleanup_chunk_size'),
