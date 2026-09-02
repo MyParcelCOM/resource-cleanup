@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace MyParcelCom\ResourceCleanup\Tests\Feature;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use MyParcelCom\ResourceCleanup\Tests\Models\TestCleanableResource;
 use MyParcelCom\ResourceCleanup\Tests\Models\TestCleanableSoftDeletableResource;
+use MyParcelCom\ResourceCleanup\Tests\Models\TestNonUniqueKeyResource;
 use MyParcelCom\ResourceCleanup\Tests\Models\TestResource;
 use MyParcelCom\ResourceCleanup\Tests\Models\TestResourceWithoutIndex;
 use MyParcelCom\ResourceCleanup\Tests\Models\TestSoftDeletableResource;
@@ -107,6 +109,29 @@ class ResourceCleanupCommandTest extends TestCase
         $this->assertSame(1, TestSoftDeletableResource::withTrashed()->count());
     }
 
+    public function test_resource_cleanup_processes_multiple_configured_models(): void
+    {
+        $this->app['config']->set('resource-cleanup.models', [
+            TestResource::class,
+            TestSoftDeletableResource::class,
+        ]);
+
+        $old = Carbon::now()->subDays(181);
+        TestResource::create(['name' => 'old-resource', 'created_at' => $old]);
+        TestResource::create(['name' => 'recent-resource']);
+        TestSoftDeletableResource::create(['name' => 'old-soft', 'created_at' => $old])->delete();
+        TestSoftDeletableResource::create(['name' => 'recent-soft']);
+
+        $this->artisan('resource-cleanup:run')
+            ->expectsOutput(TestResource::class . ': 1 record(s) deleted.')
+            ->expectsOutput(TestSoftDeletableResource::class . ': 1 record(s) deleted.')
+            ->expectsOutput('Done. Total: 2 record(s) deleted.')
+            ->assertSuccessful();
+
+        $this->assertSame(1, TestResource::count());
+        $this->assertSame(1, TestSoftDeletableResource::count());
+    }
+
     // -------------------------------------------------------------------------
     // Cleanup — model option filtering
     // -------------------------------------------------------------------------
@@ -115,15 +140,20 @@ class ResourceCleanupCommandTest extends TestCase
     {
         $this->app['config']->set('resource-cleanup.models', [
             TestSoftDeletableResource::class,
-            TestCleanableSoftDeletableResource::class,
+            TestCleanableResource::class,
         ]);
 
         $old = Carbon::now()->subDays(181);
         TestSoftDeletableResource::create(['name' => 'old', 'created_at' => $old])->delete();
+        TestCleanableResource::create(['name' => 'old-cleanable', 'created_at' => $old]);
 
         $this->artisan('resource-cleanup:run', ['--model' => [TestSoftDeletableResource::class]])
             ->expectsOutput(TestSoftDeletableResource::class . ': 1 record(s) deleted.')
             ->assertSuccessful();
+
+        // The filtered-out model must not have been touched.
+        $this->assertSame(0, TestSoftDeletableResource::withTrashed()->where('name', 'old')->count());
+        $this->assertSame(1, TestCleanableResource::where('name', 'old-cleanable')->count());
     }
 
     // -------------------------------------------------------------------------
@@ -238,6 +268,23 @@ class ResourceCleanupCommandTest extends TestCase
         $this->assertSame(5, TestResource::count());
     }
 
+    public function test_limit_is_respected_for_cleanable_resource_models(): void
+    {
+        $this->app['config']->set('resource-cleanup.models', [TestCleanableResource::class]);
+
+        $old = Carbon::now()->subDays(400);
+        TestCleanableResource::create(['name' => 'old-1', 'created_at' => $old]);
+        TestCleanableResource::create(['name' => 'old-2', 'created_at' => $old]);
+        TestCleanableResource::create(['name' => 'old-3', 'created_at' => $old]);
+
+        $this->artisan('resource-cleanup:run', ['--limit' => 2])
+            ->expectsOutput(TestCleanableResource::class . ': 2 record(s) deleted.')
+            ->expectsOutput('Done. Total: 2 record(s) deleted.')
+            ->assertSuccessful();
+
+        $this->assertSame(1, TestCleanableResource::count());
+    }
+
     // -------------------------------------------------------------------------
     // Failure cases
     // -------------------------------------------------------------------------
@@ -248,6 +295,15 @@ class ResourceCleanupCommandTest extends TestCase
 
         $this->artisan('resource-cleanup:run')
             ->expectsOutput('No cleanable models defined. Add class-strings to resource-cleanup.models in your config, e.g. App\\Models\\YourModel.')
+            ->assertFailed();
+    }
+
+    public function test_resource_cleanup_fails_when_configured_model_does_not_extend_eloquent_model(): void
+    {
+        $this->app['config']->set('resource-cleanup.models', [\stdClass::class]);
+
+        $this->artisan('resource-cleanup:run')
+            ->expectsOutput('stdClass does not extend Laravel\'s Model class.')
             ->assertFailed();
     }
 
@@ -283,5 +339,40 @@ class ResourceCleanupCommandTest extends TestCase
 
         $this->assertSame(0, TestResourceWithoutIndex::where('name', 'old')->count());
         $this->assertSame(1, TestResourceWithoutIndex::count());
+    }
+
+    // -------------------------------------------------------------------------
+    // Non-unique primary key safety
+    // -------------------------------------------------------------------------
+
+    public function test_cleanup_does_not_delete_new_record_that_reuses_an_old_key_value(): void
+    {
+        $this->app['config']->set('resource-cleanup.models', [TestNonUniqueKeyResource::class]);
+
+        $sharedUuid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+        $old = Carbon::now()->subDays(181);
+
+        // Old record — should be deleted.
+        DB::table('test_non_unique_key_resources')->insert([
+            'uuid'       => $sharedUuid,
+            'name'       => 'old',
+            'created_at' => $old,
+            'updated_at' => $old,
+        ]);
+
+        // New record reusing the same uuid — must survive.
+        DB::table('test_non_unique_key_resources')->insert([
+            'uuid'       => $sharedUuid,
+            'name'       => 'new',
+            'created_at' => Carbon::now(),
+            'updated_at' => Carbon::now(),
+        ]);
+
+        $this->artisan('resource-cleanup:run')
+            ->expectsOutput('Done. Total: 1 record(s) deleted.')
+            ->assertSuccessful();
+
+        $this->assertSame(0, TestNonUniqueKeyResource::where('name', 'old')->count());
+        $this->assertSame(1, TestNonUniqueKeyResource::where('name', 'new')->count());
     }
 }

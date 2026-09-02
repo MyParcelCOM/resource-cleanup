@@ -50,7 +50,7 @@ class ResourceCleanupCommand extends Command
         $totalDeleted = 0;
         foreach ($models as $modelClass) {
             try {
-                $query = $this->getCleanableQuery($modelClass);
+                $query = $this->cleanableQuery($modelClass);
             } catch (MissingCreatedAtIndexException $e) {
                 $this->error($e->getMessage());
 
@@ -68,26 +68,28 @@ class ResourceCleanupCommand extends Command
                 continue;
             }
 
+            $primaryKey = (new $modelClass)->getKeyName();
             $deleted = 0;
             $query->chunkById(
                 config('resource-cleanup.cleanup_chunk_size'),
-                function (Collection $records) use ($modelClass, &$deleted, $limit) {
-                    $ids = $records->pluck('id');
+                function (Collection $records) use ($query, $primaryKey, &$deleted, $limit) {
+                    $ids = $records->pluck($primaryKey);
 
                     if ($limit > 0) {
                         $ids = $ids->take($limit - $deleted);
                     }
 
-                    $deleted += $modelClass::query()->whereIn('id', $ids)->forceDelete();
+                    // Clone $query to preserve all its WHERE conditions (cutoff date, soft-delete
+                    // scope, etc.) and narrow to only the IDs collected in this chunk.
+                    $deleted += (clone $query)->whereIn($primaryKey, $ids)->forceDelete();
 
                     // 25ms sleep gives the DB breathing room for consecutive queries
                     usleep(25000);
 
                     // break out of query chunk loop if limit is reached
-                    if ($limit > 0 && $deleted >= $limit) {
-                        return false;
-                    }
+                    return !($limit > 0 && $deleted >= $limit);
                 },
+                $primaryKey,
             );
 
             $this->line(sprintf('%s: %d record(s) deleted.', $modelClass, $deleted));
@@ -146,19 +148,15 @@ class ResourceCleanupCommand extends Command
 
     /**
      * @param class-string<Model> $modelClass
+     *
+     * @throws MissingCreatedAtIndexException
      */
-    private function getCleanableQuery(string $modelClass): Builder
+    private function cleanableQuery(string $modelClass): Builder
     {
-        return is_subclass_of($modelClass, CleanableResource::class)
-            ? $modelClass::cleanable()
-            : $this->defaultCleanableQuery($modelClass);
-    }
+        if (is_subclass_of($modelClass, CleanableResource::class)) {
+            return $modelClass::cleanable();
+        }
 
-    /**
-     * @param class-string<Model> $modelClass
-     */
-    private function defaultCleanableQuery(string $modelClass): Builder
-    {
         if (!$this->option('skip-index-check')) {
             $this->validateCreatedAtIndex($modelClass);
         }
